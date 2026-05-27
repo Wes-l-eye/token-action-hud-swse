@@ -1,0 +1,45 @@
+{
+  "id": "token-action-hud-swse",
+  "title": "Token Action HUD - Star Wars Saga Edition",
+  "description": "Token Action HUD support for the Star Wars Saga Edition system, providing a repositionable HUD of actions for selected tokens.",
+  "version": "1.0.0",
+  "authors": [
+    {
+      "name": "Community"
+    }
+  ],
+  "compatibility": {
+    "minimum": "13",
+    "verified": "13"
+  },
+  "esmodules": [
+    "./scripts/init.js"
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "languages/en.json"
+    }
+  ],
+  "relationships": {
+    "systems": [
+      {
+        "id": "swse",
+        "type": "system",
+        "compatibility": {
+          "minimum": "13.0.0"
+        }
+      }
+    ],
+    "requires": [
+      {
+        "id": "token-action-hud-core",
+        "type": "module",
+        "compatibility": {
+          "minimum": "2.0.0"
+        }
+      }
+    ]
+  }
+}

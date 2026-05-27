@@ -1,0 +1,33 @@
+{
+  "SWSE.TAH.Categories.Combat":   "Combat",
+  "SWSE.TAH.Categories.Skills":   "Skills",
+  "SWSE.TAH.Categories.Powers":   "Powers & Talents",
+  "SWSE.TAH.Categories.Vehicle":  "Vehicle",
+  "SWSE.TAH.Categories.Utility":  "Utility",
+
+  "SWSE.TAH.Groups.Attacks":        "Attacks",
+  "SWSE.TAH.Groups.Skills":         "Skills",
+  "SWSE.TAH.Groups.ForcePowers":    "Force Powers",
+  "SWSE.TAH.Groups.Talents":        "Talents",
+  "SWSE.TAH.Groups.Feats":          "Feats",
+  "SWSE.TAH.Groups.Traits":         "Traits",
+  "SWSE.TAH.Groups.Features":       "Features",
+  "SWSE.TAH.Groups.Defenses":       "Defenses",
+  "SWSE.TAH.Groups.Utilities":      "Utility",
+  "SWSE.TAH.Groups.VehicleWeapons": "Weapons",
+  "SWSE.TAH.Groups.VehicleSystems": "Systems",
+
+  "SWSE.TAH.Actions.RollInitiative":    "Roll Initiative",
+  "SWSE.TAH.Actions.SecondWind":        "Second Wind",
+  "SWSE.TAH.Actions.SecondWindTooltip": "Spend a swift action to heal 1/4 max HP + CON modifier. Once per encounter; resets after 8 hours of rest.",
+  "SWSE.TAH.Actions.EightHourRest":     "8-Hour Rest",
+  "SWSE.TAH.Actions.EightHourRestTooltip": "Rest for 8 hours: restore all hit points and reset Second Wind uses.",
+  "SWSE.TAH.Actions.MakeVisible":       "Make Visible",
+  "SWSE.TAH.Actions.MakeHidden":        "Make Hidden",
+  "SWSE.TAH.Actions.ToggleVisibility":  "Toggle Visibility",
+  "SWSE.TAH.Actions.UnknownWeapon":     "Unknown Weapon",
+
+  "SWSE.TAH.Notifications.NoSecondWinds": "{name} has no Second Winds remaining.",
+  "SWSE.TAH.Notifications.SecondWindUsed": "{name} uses Second Wind and heals {heal} HP.",
+  "SWSE.TAH.Notifications.EightHourRest": "{name} takes an 8-hour rest and recovers fully."
+}
