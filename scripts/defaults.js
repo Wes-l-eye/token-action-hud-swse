@@ -7,7 +7,7 @@ import { GROUP } from "./constants.js";
 export function buildDefaults() {
     /**
      * Spread a group and pre-localize its name for a given category.
-     * TAH Core uses name as a plain display string — it does NOT call localize() itself.
+     * TAH Core uses name as a plain display string — it does NOT call localize().
      */
     function nest(categoryId, group) {
         const localName = game.i18n.localize(group.name);
@@ -30,26 +30,50 @@ export function buildDefaults() {
 
     return {
         layout: [
-            cat("combat",  "SWSE.TAH.Categories.Combat", [
-                nest("combat",  GROUP.ATTACKS),
-                nest("combat",  GROUP.DEFENSES),
+            // ── 10 character categories ───────────────────────────────────────
+            cat("attacks",     "SWSE.TAH.Categories.Attacks",    [
+                nest("attacks",    GROUP.ATTACKS),
+                // Attack Mods group is populated dynamically; static definition required by TAH Core
+                { id: "attack-mods", type: "system", nestId: "attacks_attack-mods",
+                  name: game.i18n.localize("SWSE.TAH.Groups.AttackMods"),
+                  listName: `Group: ${game.i18n.localize("SWSE.TAH.Groups.AttackMods")}` },
             ]),
-            cat("skills",  "SWSE.TAH.Categories.Skills", [
-                nest("skills",  GROUP.SKILLS),
+            cat("actions",     "SWSE.TAH.Categories.Actions",    [
+                nest("actions",    GROUP.COMBAT_ACTIONS),
             ]),
-            cat("powers",  "SWSE.TAH.Categories.Powers", [
-                nest("powers",  GROUP.FORCE_POWERS),
-                nest("powers",  GROUP.TALENTS),
-                nest("powers",  GROUP.FEATS),
-                nest("powers",  GROUP.TRAITS),
-                nest("powers",  GROUP.FEATURES),
+            cat("inventory",   "SWSE.TAH.Categories.Inventory",  [
+                nest("inventory",  GROUP.INVENTORY),
             ]),
-            cat("vehicle", "SWSE.TAH.Categories.Vehicle", [
-                nest("vehicle", GROUP.VEHICLE_WEAPONS),
-                nest("vehicle", GROUP.VEHICLE_SYSTEMS),
+            cat("talents",     "SWSE.TAH.Categories.Talents",    [
+                nest("talents",    GROUP.TALENTS),
             ]),
-            cat("utility", "SWSE.TAH.Categories.Utility", [
-                nest("utility", GROUP.UTILITIES),
+            cat("force",       "SWSE.TAH.Categories.ForcePowers", [
+                nest("force",      GROUP.FORCE_POWERS),
+                nest("force",      GROUP.FORCE_EXTRAS),
+            ]),
+            cat("feats",       "SWSE.TAH.Categories.Feats",      [
+                nest("feats",      GROUP.FEATS),
+                nest("feats",      GROUP.TRAITS),
+            ]),
+            cat("attributes",  "SWSE.TAH.Categories.Attributes", [
+                nest("attributes", GROUP.RESOURCES),
+                nest("attributes", GROUP.ABILITIES),
+                nest("attributes", GROUP.DEFENSES),
+            ]),
+            cat("skills",      "SWSE.TAH.Categories.Skills",     [
+                nest("skills",     GROUP.SKILLS),
+            ]),
+            cat("effects",     "SWSE.TAH.Categories.Effects",    [
+                nest("effects",    GROUP.EFFECTS),
+            ]),
+            cat("utility",     "SWSE.TAH.Categories.Utility",    [
+                nest("utility",    GROUP.UTILITIES),
+            ]),
+
+            // ── Vehicle (shown only for vehicle actors) ───────────────────────
+            cat("vehicle",     "SWSE.TAH.Categories.Vehicle",    [
+                nest("vehicle",    GROUP.VEHICLE_WEAPONS),
+                nest("vehicle",    GROUP.VEHICLE_SYSTEMS),
             ]),
         ],
 
