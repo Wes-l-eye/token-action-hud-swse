@@ -11,6 +11,19 @@ import { createSystemManager } from "./system-manager.js";
 import { MODULE, REQUIRED_CORE_MODULE_VERSION } from "./constants.js";
 
 Hooks.once("tokenActionHudCoreApiReady", async (coreModule) => {
+    // Inject module stylesheet programmatically.
+    // FoundryVTT only processes the module.json "styles" array when the node
+    // server starts, so a world-reload alone won't pick up a newly-added entry.
+    // Injecting here guarantees the CSS is always present after a browser refresh.
+    const cssId = "token-action-hud-swse-styles";
+    if (!document.getElementById(cssId)) {
+        const link  = document.createElement("link");
+        link.id     = cssId;
+        link.rel    = "stylesheet";
+        link.href   = "modules/token-action-hud-swse/styles/token-action-hud-swse.css";
+        document.head.appendChild(link);
+    }
+
     // Build classes that extend TAH Core base classes
     const ActionHandler = createActionHandler(coreModule);
     const RollHandler   = createRollHandler(coreModule);

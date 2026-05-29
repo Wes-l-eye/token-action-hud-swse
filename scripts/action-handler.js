@@ -800,13 +800,51 @@ export function createActionHandler(coreModule) {
         }
 
         // ─── Skills ───────────────────────────────────────────────────────────
+        //
+        // Skills are split into two sub-groups:
+        //   • "Skills"    — all non-Knowledge skills
+        //   • "Knowledge" — the seven Knowledge skills
+        //
+        // Trained skills (actor.system.skills[key].trained === true) receive
+        // the CSS class "tah-swse-trained" so the stylesheet can colour them.
+        //
+        // NOTE: resolvedLabels stores the abbreviated display form for knowledge
+        // skills (e.g. "K. (bureaucracy)") — not "Knowledge (bureaucracy)".
+        // We therefore build both lookups from actor.system.skills keys (which
+        // use the full lowercase name) by re-deriving the @Variable key using
+        // the same logic as SWSE's cleanSkillName() function.
 
         async #buildSkills(actor) {
             const variables = actor.resolvedVariables;
             const labels    = actor.resolvedLabels;
             if (!variables?.size) return;
 
-            const actions = [];
+            // Replicate SWSE's actor.cleanSkillName() so we can map
+            // actor.system.skills keys → @Variable keys without calling the
+            // system method directly.
+            function swseCleanSkillName(raw) {
+                let s = raw.replace(/\b\w/g, c => c.toUpperCase()); // title-case
+                s = s.replace("Knowledge ", "K");   // abbreviate Knowledge
+                s = s.replace("(", "").replace(")", ""); // strip parens
+                s = s.replace(" ", "").replace(" ", ""); // strip up to 2 spaces
+                return s;
+            }
+
+            // Build per-@Variable lookups from actor.system.skills
+            const trainedByVar    = new Map();   // "@Acrobatics" → true/false
+            const knowledgeVarSet = new Set();   // "@KBureaucracy", etc.
+
+            for (const [skillKey, skillData] of Object.entries(actor.system?.skills ?? {})) {
+                const varKey = "@" + swseCleanSkillName(skillKey);
+                trainedByVar.set(varKey, skillData?.trained === true);
+                if (skillKey.toLowerCase().startsWith("knowledge")) {
+                    knowledgeVarSet.add(varKey);
+                }
+            }
+
+            const regularActions   = [];
+            const knowledgeActions = [];
+
             for (const [key, formula] of variables.entries()) {
                 if (!key.startsWith("@"))                                     continue;
                 if (DEFENSE_VARIABLES.has(key))                               continue;
@@ -814,35 +852,62 @@ export function createActionHandler(coreModule) {
                 if (typeof formula !== "string" || !formula.includes("d20"))  continue;
 
                 // Labels from resolvedLabels may be raw i18n keys — try to resolve them
-                const rawLabel = labels?.get(key) ?? key.replace("@", "");
-                const label    = game.i18n.localize(rawLabel);
-                const bonus    = extractBonus(formula);
-                actions.push({
+                const rawLabel  = labels?.get(key) ?? key.replace("@", "");
+                const label     = game.i18n.localize(rawLabel);
+                const bonus     = extractBonus(formula);
+                const isTrained   = trainedByVar.get(key)   ?? false;
+                const isKnowledge = knowledgeVarSet.has(key);
+
+                // For knowledge skills the label is "K. (bureaucracy)" — since they
+                // live in their own sub-group we strip the prefix and show just
+                // "Bureaucracy", "Galactic Lore", etc.
+                const displayLabel = isKnowledge
+                    ? (label.match(/^K\.\s*\((.+)\)$/i)?.[1] ?? label)
+                          .replace(/\b\w/g, c => c.toUpperCase())
+                    : label;
+
+                const action = {
                     id:       `skill_${key}`,
-                    name:     `${label} ${bonus}`.trimEnd(),
-                    listName: label,
+                    name:     `${displayLabel} ${bonus}`.trimEnd(),
+                    listName: displayLabel,
+                    cssClass: isTrained ? "tah-swse-trained" : "",
                     system: {
                         actionType: ACTION_TYPE.SKILL,
                         variable:   key,
                         actorId:    actor.id,
                         actorUUID:  actor.uuid
                     }
-                });
+                };
+
+                if (isKnowledge) {
+                    knowledgeActions.push(action);
+                } else {
+                    regularActions.push(action);
+                }
             }
 
-            // Initiative first, then alphabetical
-            actions.sort((a, b) => {
+            // Initiative first among regular skills, then alphabetical within each group
+            regularActions.sort((a, b) => {
                 if (a.system.variable === "@Initiative") return -1;
                 if (b.system.variable === "@Initiative") return  1;
                 return a.name.localeCompare(b.name);
             });
+            knowledgeActions.sort((a, b) => a.name.localeCompare(b.name));
 
-            if (!actions.length) return;
-            await this.addActions(actions, {
-                id:     GROUP.SKILLS.id,
-                type:   "system",
-                nestId: `skills_${GROUP.SKILLS.id}`
-            });
+            if (regularActions.length) {
+                await this.addActions(regularActions, {
+                    id:     GROUP.SKILLS.id,
+                    type:   "system",
+                    nestId: `skills_${GROUP.SKILLS.id}`
+                });
+            }
+            if (knowledgeActions.length) {
+                await this.addActions(knowledgeActions, {
+                    id:     GROUP.KNOWLEDGE_SKILLS.id,
+                    type:   "system",
+                    nestId: `skills_${GROUP.KNOWLEDGE_SKILLS.id}`
+                });
+            }
         }
 
         // ─── Effects ──────────────────────────────────────────────────────────

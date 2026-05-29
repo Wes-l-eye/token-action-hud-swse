@@ -25,6 +25,7 @@ export const GROUP = {
     ABILITIES:       { id: "abilities",       name: "SWSE.TAH.Groups.AbilityChecks",  type: "system" },
     DEFENSES:        { id: "defenses",        name: "SWSE.TAH.Groups.Defenses",       type: "system" },
     SKILLS:          { id: "skills",          name: "SWSE.TAH.Groups.Skills",         type: "system" },
+    KNOWLEDGE_SKILLS:{ id: "knowledge-skills",name: "SWSE.TAH.Groups.KnowledgeSkills", type: "system" },
     // Character resources (Force / Destiny / Dark Side)
     RESOURCES:       { id: "resources",       name: "SWSE.TAH.Groups.Resources",      type: "system" },
     // Effects & utility

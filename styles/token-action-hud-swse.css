@@ -11,6 +11,31 @@
  * The .tah-swse-weapon class is applied to each weapon's sub-group
  * inner container (.tah-list-subgroup) via the group's "class" field.
  */
-.tah-list-subgroup.tah-swse-weapon .tah-actions {
-    flex-wrap: nowrap;
+/**
+ * Compact weapon action buttons.
+ * Slightly smaller font + min-width keeps weapon rows tidy without
+ * forcing single-row (which causes horizontal scroll on long rows).
+ */
+.tah-list-subgroup.tah-swse-weapon .tah-button-box {
+    font-size: 0.82em;
+    min-width: 26px;
+}
+
+/**
+ * Trained skills — amber background tint so they stand out at a glance.
+ *
+ * TAH Core renders action buttons as:
+ *   <div class="tah-action">
+ *     <button class="tah-button-box [cssClass]">…</button>
+ *   </div>
+ *
+ * "tah-swse-trained" is applied via cssClass, so it lands on .tah-button-box.
+ * !important is required to override the theme's CSS-variable-based background.
+ */
+.tah-button-box.tah-swse-trained {
+    background-color: rgba(180, 120, 0, 0.45) !important;
+}
+
+.tah-button-box.tah-swse-trained:hover {
+    background-color: rgba(210, 150, 0, 0.6) !important;
 }

@@ -62,6 +62,7 @@ export function buildDefaults() {
             ]),
             cat("skills",      "SWSE.TAH.Categories.Skills",     [
                 nest("skills",     GROUP.SKILLS),
+                nest("skills",     GROUP.KNOWLEDGE_SKILLS),
             ]),
             cat("effects",     "SWSE.TAH.Categories.Effects",    [
                 nest("effects",    GROUP.EFFECTS),

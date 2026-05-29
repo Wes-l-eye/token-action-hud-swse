@@ -23,6 +23,7 @@
   "SWSE.TAH.Groups.AbilityChecks":  "Ability Checks",
   "SWSE.TAH.Groups.Defenses":       "Defenses",
   "SWSE.TAH.Groups.Skills":         "Skills",
+  "SWSE.TAH.Groups.KnowledgeSkills":"Knowledge",
   "SWSE.TAH.Groups.Resources":      "Resources",
   "SWSE.TAH.Groups.Effects":        "Effects",
   "SWSE.TAH.Groups.Utilities":      "Utility",
