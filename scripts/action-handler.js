@@ -33,6 +33,7 @@ function extractBonus(formula) {
         if (!expr) return "+0";
         // Don't attempt to parse if unresolved variable references remain
         if (/[@a-zA-Z_]/.test(expr)) return "";
+
         // Normalise double-sign combinations: "+ -" → "-",  "- -" → "+"
         expr = expr.replace(/\+\s*-/g, "-").replace(/-\s*-/g, "+");
         // Tokenise into signed numeric terms and sum them
@@ -48,6 +49,50 @@ function extractBonus(formula) {
         return total >= 0 ? `+${total}` : `${total}`;
     } catch { /* ignore parse failures — show name without bonus */ }
     return "";
+}
+
+/** extractBonus returning a number (null if formula can't be resolved). */
+function extractBonusVal(formula) {
+    const s = extractBonus(formula);
+    if (!s) return null;
+    return parseInt(s, 10);
+}
+
+/** Format a numeric bonus for display: 8 → "+8", -2 → "-2". */
+function formatBonus(n) {
+    if (n == null) return "";
+    return n >= 0 ? `+${n}` : `${n}`;
+}
+
+// ─── Attack-mode visual helpers ───────────────────────────────────────────────
+
+/**
+ * Unicode icon for a known fire mode name.
+ * Returns null for modes that should keep the legacy ↳ toggle appearance.
+ */
+function getModeIcon(modeName) {
+    const lower = (modeName ?? "").toLowerCase();
+    if (lower.includes("single"))    return "●";   // U+25CF  single shot
+    if (lower.includes("autofire"))  return "⋯";   // U+22EF  autofire (3 dots)
+    if (lower.includes("burst"))     return "◉";   // U+25C9  burst fire
+    if (lower.includes("stun"))      return "◎";   // U+25CE  stun (bullseye)
+    return null; // unknown mode → keep as toggle
+}
+
+/** Returns true if this mode name is a mutually-exclusive fire-rate mode. */
+function isFireRateMode(modeName) {
+    const lower = (modeName ?? "").toLowerCase();
+    return lower.includes("single") || lower.includes("autofire") || lower.includes("burst");
+}
+
+/**
+ * Sum the toHitModifier changes an Active Effect contributes.
+ * SWSE typically stores these as AE changes with key "toHitModifier".
+ */
+function getModeToHitAdj(mode) {
+    return (mode.changes ?? [])
+        .filter(c => (c.key ?? "").toLowerCase().includes("tohitmodifier"))
+        .reduce((sum, c) => sum + (Number(c.value) || 0), 0);
 }
 
 /**
@@ -91,6 +136,15 @@ export function createActionHandler(coreModule) {
         }
 
         // ─── Attacks ──────────────────────────────────────────────────────────
+        //
+        // Each weapon gets its own named sub-group (with its item image).
+        // Inside each sub-group:
+        //   • Draw / Sheathe  — equip toggle
+        //   • ● +N            — single-shot attack (plain click = standard, shift = full)
+        //   • ⋯ +N            — autofire attack    (activates Autofire AE first)
+        //   • ◉ +N            — burst-fire attack  (activates Burst AE first)
+        //   • ◎ +N            — stun attack        (activates Stun Setting AE first)
+        //   • ↳ Name          — any other mode kept as a regular toggle
 
         async #buildAttacks(actor) {
             const attacks = actor.attack?.attacks ?? [];
@@ -101,40 +155,40 @@ export function createActionHandler(coreModule) {
                 "Grenades", "Simple Ranged Weapons", "Ranged Natural Weapons"
             ];
 
-            // Each weapon gets its own named sub-group so weapons never share a row.
-            // Pattern from PF2e TAH: parent uses type:"system" (only matches the static group,
-            // never derived sub-groups); sub-group uses type:"system-derived"; the SAME group
-            // data object is passed to both addGroup and addActions — no nestId needed.
             const parentData = { id: GROUP.ATTACKS.id, type: "system" };
 
             for (let index = 0; index < attacks.length; index++) {
                 const atk  = attacks[index];
                 const item = atk.item ?? null;
 
-                // Derive a stable, selector-safe group id from the underlying item id.
                 const rawId         = item?.id ?? `atk${index}`;
                 const weaponGroupId = `w_${rawId.replace(/[^A-Za-z0-9_-]/g, "_")}`;
                 const weaponName    = atk.name ?? game.i18n.localize("SWSE.TAH.Actions.UnknownWeapon");
 
-                // Create the per-weapon sub-group.  Reuse this object in addActions — TAH Core
-                // finds the sub-group by id + type without needing an explicit nestId.
-                const weaponGroupData = { id: weaponGroupId, name: weaponName, type: "system-derived" };
+                // Sub-group now carries the weapon image so TAH Core can render it
+                const weaponGroupData = {
+                    id:   weaponGroupId,
+                    name: weaponName,
+                    type: "system-derived",
+                    img:  item?.img ?? ""
+                };
                 await this.addGroup(weaponGroupData, parentData);
 
                 const weaponActions = [];
 
-                // ── Equip toggle ───────────────────────────────────────────
-                // Show equip state here so users don't need to open Inventory to equip a weapon.
+                // ── Draw / Sheathe toggle ──────────────────────────────────
                 if (item) {
                     const equipped = item.system?.equipped === "equipped" || item.system?.equipped === true;
                     weaponActions.push({
                         id:       `equip_${item.id}`,
-                        name:     equipped ? "Equipped" : "Unequipped",
-                        listName: equipped ? `${weaponName}: Unequip` : `${weaponName}: Equip`,
+                        name:     equipped
+                            ? game.i18n.localize("SWSE.TAH.Actions.Sheathe")
+                            : game.i18n.localize("SWSE.TAH.Actions.Draw"),
+                        listName: equipped ? `${weaponName}: Sheathe` : `${weaponName}: Draw`,
                         cssClass: equipped ? "toggle active" : "toggle",
                         tooltip:  equipped
-                            ? `${weaponName} is equipped — click to unequip`
-                            : `${weaponName} is not equipped — click to equip`,
+                            ? game.i18n.format("SWSE.TAH.Actions.SheatheTip", { weapon: weaponName })
+                            : game.i18n.format("SWSE.TAH.Actions.DrawTip",    { weapon: weaponName }),
                         system: {
                             actionType: ACTION_TYPE.EQUIP_TOGGLE,
                             itemId:     item.id,
@@ -144,83 +198,157 @@ export function createActionHandler(coreModule) {
                     });
                 }
 
-                // ── Main attack button ────────────────────────────────────
-                let tag = "";
+                // ── Ranged vs melee tag (used in tooltips) ─────────────────
+                let rangeTag = "";
                 try {
                     const sub = item?.system?.subtype ?? "";
-                    if (sub) tag = RANGED_SUBTYPES.some(g => sub.includes(g)) ? " [R]" : " [M]";
+                    if (sub) rangeTag = RANGED_SUBTYPES.some(g => sub.includes(g)) ? " [R]" : " [M]";
                 } catch { /* ignore */ }
+
+                // ── Attack-bonus computation ───────────────────────────────
+                // atk.attackRoll returns a Foundry Roll built (not evaluated) from the
+                // actor's fully-resolved attributes.  We parse the formula to read the
+                // total numeric modifier without actually rolling.
+                let neutralBonusVal = null; // base bonus with all active-mode adjustments removed
+                const modes = atk.modes ?? [];
+                try {
+                    const formula = atk.attackRoll?.formula;
+                    const rawVal  = extractBonusVal(formula ?? "");
+                    if (rawVal !== null) {
+                        // Subtract the adjustments that currently-active modes are contributing
+                        // so we have a "clean" base from which each mode's bonus can be derived.
+                        const activeModeAdj = modes
+                            .filter(m => !m.disabled)
+                            .reduce((sum, m) => sum + getModeToHitAdj(m), 0);
+                        neutralBonusVal = rawVal - activeModeAdj;
+                    }
+                } catch { /* leave null — buttons show icon only */ }
+
+                // ── Categorise modes ───────────────────────────────────────
+                // "Single-Shot" (or any mode whose icon is ●) becomes the primary
+                // attack button.  Everything else becomes its own attack button or,
+                // for unknown modes, keeps the old ↳ toggle style.
+                const singleMode = modes.find(m => getModeIcon(m.name) === "●");
+                const otherModes = modes.filter(m => m !== singleMode);
+
+                // ── Primary attack button: ● +N ────────────────────────────
+                const singleAdj = singleMode ? getModeToHitAdj(singleMode) : 0;
+                const singleVal = neutralBonusVal !== null ? neutralBonusVal + singleAdj : null;
+                // Active when Single-Shot AE is enabled, or when no other mode is active
+                const singleActive = singleMode
+                    ? !singleMode.disabled
+                    : otherModes.every(m => m.disabled);
 
                 weaponActions.push({
                     id:       `attack_${atk.attackKey}`,
-                    name:     "Attack" + tag,
+                    name:     `● ${formatBonus(singleVal)}`.trimEnd(),
                     listName: `${weaponName}: Attack`,
-                    tooltip:  game.i18n.localize("SWSE.TAH.Tooltips.AttackHint"),
+                    cssClass: singleActive ? "toggle active" : "",
+                    tooltip:  `Single Shot${rangeTag} — ${game.i18n.localize("SWSE.TAH.Tooltips.AttackHint")}`,
                     system: {
-                        actionType: ACTION_TYPE.ATTACK,
-                        attackKey:  atk.attackKey,
-                        actorUUID:  actor.uuid
+                        actionType:    ACTION_TYPE.ATTACK,
+                        attackKey:     atk.attackKey,
+                        modeToActivate: singleMode?.id ?? null,
+                        isFireRateMode: true,
+                        actorUUID:     actor.uuid,
+                        itemId:        item?.id ?? null
                     }
                 });
 
-                // ── Fire-mode toggles for this weapon ─────────────────────
-                // Modern SWSE stores fire modes as Active Effects on the weapon item.
-                // Legacy SWSE stores them in item.system.modes.
-                try {
-                    if (item) {
-                        // Modern: Active Effects that are mode-like (not item modifiers)
-                        const aeModesRaw = atk.modes ?? [];
-                        for (const mode of aeModesRaw) {
-                            const modeName = mode.name ?? "Mode";
-                            const isActive  = !mode.disabled;
+                // ── Additional mode buttons ────────────────────────────────
+                for (const mode of otherModes) {
+                    const icon = getModeIcon(mode.name);
+
+                    if (!icon) {
+                        // Unknown mode — keep as old ↳ toggle
+                        weaponActions.push({
+                            id:       `mode_ae_${atk.attackKey}_${mode.id}`,
+                            name:     `↳ ${mode.name ?? "Mode"}`,
+                            listName: `${weaponName}: ${mode.name}`,
+                            cssClass: !mode.disabled ? "toggle active" : "toggle",
+                            tooltip:  !mode.disabled
+                                ? game.i18n.format("SWSE.TAH.Modes.ActiveTip",   { mode: mode.name })
+                                : game.i18n.format("SWSE.TAH.Modes.InactiveTip", { mode: mode.name }),
+                            system: {
+                                actionType: ACTION_TYPE.MODE_TOGGLE,
+                                modeSource: "effect",
+                                effectId:   mode.id,
+                                itemId:     item?.id,
+                                actorId:    actor.id,
+                                actorUUID:  actor.uuid
+                            }
+                        });
+                        continue;
+                    }
+
+                    const modeAdj = getModeToHitAdj(mode);
+                    const modeVal = neutralBonusVal !== null ? neutralBonusVal + modeAdj : null;
+                    const isFire  = isFireRateMode(mode.name);
+
+                    weaponActions.push({
+                        id:       `attack_mode_${atk.attackKey}_${mode.id}`,
+                        name:     `${icon} ${formatBonus(modeVal)}`.trimEnd(),
+                        listName: `${weaponName}: ${mode.name}`,
+                        cssClass: !mode.disabled ? "toggle active" : "",
+                        tooltip:  `${mode.name}${rangeTag} — ${game.i18n.localize("SWSE.TAH.Tooltips.AttackHint")}`,
+                        system: {
+                            actionType:    ACTION_TYPE.ATTACK,
+                            attackKey:     atk.attackKey,
+                            modeToActivate: mode.id,
+                            isFireRateMode: isFire,
+                            actorUUID:     actor.uuid,
+                            itemId:        item?.id ?? null
+                        }
+                    });
+                }
+
+                // ── Legacy system.modes (only when no AE modes exist) ──────
+                const legacyModes = Object.entries(item?.system?.modes ?? {});
+                if (legacyModes.length && !modes.length) {
+                    for (const [modeKey, modeData] of legacyModes) {
+                        if (!modeData?.name) continue;
+                        const icon     = getModeIcon(modeData.name);
+                        const isActive = !!modeData.isActive;
+                        const isFire   = isFireRateMode(modeData.name);
+
+                        if (!icon) {
                             weaponActions.push({
-                                id:       `mode_ae_${atk.attackKey}_${mode.id}`,
-                                name:     `↳ ${modeName}`,
-                                listName: `${weaponName}: ${modeName}`,
+                                id:       `mode_sys_${atk.attackKey}_${modeKey}`,
+                                name:     `↳ ${modeData.name}`,
+                                listName: `${weaponName}: ${modeData.name}`,
                                 cssClass: isActive ? "toggle active" : "toggle",
                                 tooltip:  isActive
-                                    ? game.i18n.format("SWSE.TAH.Modes.ActiveTip",   { mode: modeName })
-                                    : game.i18n.format("SWSE.TAH.Modes.InactiveTip", { mode: modeName }),
+                                    ? game.i18n.format("SWSE.TAH.Modes.ActiveTip",   { mode: modeData.name })
+                                    : game.i18n.format("SWSE.TAH.Modes.InactiveTip", { mode: modeData.name }),
                                 system: {
                                     actionType: ACTION_TYPE.MODE_TOGGLE,
-                                    modeSource: "effect",
-                                    effectId:   mode.id,
-                                    itemId:     item.id,
+                                    modeSource: "system",
+                                    modeKey,
+                                    itemId:     item?.id,
                                     actorId:    actor.id,
                                     actorUUID:  actor.uuid
                                 }
                             });
+                            continue;
                         }
 
-                        // Legacy: system.modes (name + isActive)
-                        const legacyModes = Object.entries(item.system?.modes ?? {});
-                        if (legacyModes.length && !aeModesRaw.length) {
-                            for (const [modeKey, modeData] of legacyModes) {
-                                if (!modeData?.name) continue;
-                                const modeName = modeData.name;
-                                const isActive  = !!modeData.isActive;
-                                weaponActions.push({
-                                    id:       `mode_sys_${atk.attackKey}_${modeKey}`,
-                                    name:     `↳ ${modeName}`,
-                                    listName: `${weaponName}: ${modeName}`,
-                                    cssClass: isActive ? "toggle active" : "toggle",
-                                    tooltip:  isActive
-                                        ? game.i18n.format("SWSE.TAH.Modes.ActiveTip",   { mode: modeName })
-                                        : game.i18n.format("SWSE.TAH.Modes.InactiveTip", { mode: modeName }),
-                                    system: {
-                                        actionType: ACTION_TYPE.MODE_TOGGLE,
-                                        modeSource: "system",
-                                        modeKey,
-                                        itemId:     item.id,
-                                        actorId:    actor.id,
-                                        actorUUID:  actor.uuid
-                                    }
-                                });
+                        // Known icon — legacy mode button (no bonus computable without AE data)
+                        weaponActions.push({
+                            id:       `attack_sysmode_${atk.attackKey}_${modeKey}`,
+                            name:     icon,
+                            listName: `${weaponName}: ${modeData.name}`,
+                            cssClass: isActive ? "toggle active" : "",
+                            tooltip:  `${modeData.name}${rangeTag} — ${game.i18n.localize("SWSE.TAH.Tooltips.AttackHint")}`,
+                            system: {
+                                actionType:    ACTION_TYPE.ATTACK,
+                                attackKey:     atk.attackKey,
+                                legacyModeKey: modeKey,
+                                isFireRateMode: isFire,
+                                actorUUID:     actor.uuid,
+                                itemId:        item?.id ?? null
                             }
-                        }
+                        });
                     }
-                } catch (err) {
-                    console.warn(`[token-action-hud-swse] Could not read modes for attack ${atk.attackKey}:`, err);
                 }
 
                 await this.addActions(weaponActions, weaponGroupData);

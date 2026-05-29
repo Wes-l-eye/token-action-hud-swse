@@ -54,11 +54,45 @@ export function createRollHandler(coreModule) {
         // ─── Attack ───────────────────────────────────────────────────────────
 
         async #handleAttack() {
-            const { attackKey, actorUUID } = this.action.system;
+            const { attackKey, actorUUID, modeToActivate, isFireRateMode, itemId } = this.action.system;
             if (!attackKey || !actorUUID) return;
 
-            // Collect any primed pre-attack modifiers from actor flags
-            const actor   = fromUuidSync(actorUUID);
+            const actor = fromUuidSync(actorUUID);
+            if (!actor) return;
+
+            // ── Activate the desired fire mode before attacking ───────────
+            // Each attack button stores the AE id it wants active.  If it's a
+            // fire-rate mode (Single-Shot / Autofire / Burst) we also deactivate
+            // the competing fire-rate modes so SWSE sees only one active at a time.
+            if (modeToActivate && itemId) {
+                const item = actor.items.get(itemId);
+                if (item) {
+                    // All non-itemModifier effects = fire modes + stun setting etc.
+                    const allModes = (item.effects?.contents ?? [])
+                        .filter(e => !e.flags?.swse?.itemModifier);
+                    const targetMode = allModes.find(e => e.id === modeToActivate);
+
+                    if (targetMode) {
+                        if (isFireRateMode) {
+                            // Deactivate competing fire-rate modes first
+                            const FIRE_RATE = ["single", "autofire", "burst"];
+                            for (const mode of allModes) {
+                                if (mode.id === modeToActivate) continue;
+                                if (!mode.disabled &&
+                                    FIRE_RATE.some(k => mode.name.toLowerCase().includes(k))) {
+                                    await mode.update({ disabled: true });
+                                }
+                            }
+                        }
+                        // Enable the target mode if it isn't already
+                        if (targetMode.disabled) {
+                            await targetMode.update({ disabled: false });
+                        }
+                    }
+                }
+            }
+
+            // ── Collect primed pre-attack modifiers ───────────────────────
             const primed  = actor?.getFlag(MODULE_ID, PENDING_MODS_FLAG) ?? {};
             const changes = Object.values(primed).flat();   // [{key, value, mode}, ...]
 

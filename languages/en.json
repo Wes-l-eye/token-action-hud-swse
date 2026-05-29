@@ -37,6 +37,11 @@
   "SWSE.TAH.AttackMods.PrimedTip":  "PRIMED for next attack ({summary}) — click to remove",
   "SWSE.TAH.AttackMods.UnprimedTip":"Click to prime for next attack ({summary})",
 
+  "SWSE.TAH.Actions.Draw":                "Draw",
+  "SWSE.TAH.Actions.Sheathe":             "Sheathe",
+  "SWSE.TAH.Actions.DrawTip":             "Sheathed — click to draw {weapon}",
+  "SWSE.TAH.Actions.SheatheTip":          "Drawn — click to sheathe {weapon}",
+
   "SWSE.TAH.Actions.RollInitiative":      "Roll Initiative",
   "SWSE.TAH.Actions.SecondWind":          "Second Wind",
   "SWSE.TAH.Actions.SecondWindTooltip":   "Spend a swift action to heal 1/4 max HP + CON modifier. Once per encounter; resets after 8 hours of rest.",
