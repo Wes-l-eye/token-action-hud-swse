@@ -96,8 +96,8 @@ export function createRollHandler(coreModule) {
             const primed  = actor?.getFlag(MODULE_ID, PENDING_MODS_FLAG) ?? {};
             const changes = Object.values(primed).flat();   // [{key, value, mode}, ...]
 
-            // Shift+click → full attack; plain click → single attack
-            const type = this.isShift ? "FULL_ATTACK" : "SINGLE_ATTACK";
+            // ⊕ button carries fullAttack:true; ● and mode buttons carry false
+            const type = this.action.system.fullAttack ? "FULL_ATTACK" : "SINGLE_ATTACK";
             await game.swse.makeAttack({ actorUUID, type, attackKeys: [attackKey], changes });
 
             // Auto-clear primed modifiers after the attack fires

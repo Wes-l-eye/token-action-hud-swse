@@ -28,8 +28,10 @@ function stripHtml(html) {
 function extractBonus(formula) {
     if (!formula || typeof formula !== "string") return "";
     try {
+        // Strip Foundry flavor annotations like "5[Base Attack Bonus]" → "5"
+        let expr = formula.replace(/\[[^\]]*\]/g, "");
         // Remove all dice tokens (e.g. "1d20") leaving only the modifier part
-        let expr = formula.replace(/\s*\d*d\d+\s*/gi, " ").trim();
+        expr = expr.replace(/\s*\d*d\d+\s*/gi, " ").trim();
         if (!expr) return "+0";
         // Don't attempt to parse if unresolved variable references remain
         if (/[@a-zA-Z_]/.test(expr)) return "";
@@ -137,19 +139,19 @@ export function createActionHandler(coreModule) {
 
         // ─── Attacks ──────────────────────────────────────────────────────────
         //
-        // Each weapon gets its own named sub-group (with its item image).
-        // Inside each sub-group:
-        //   • Draw / Sheathe  — equip toggle
-        //   • ● +N            — single-shot attack (plain click = standard, shift = full)
-        //   • ⋯ +N            — autofire attack    (activates Autofire AE first)
-        //   • ◉ +N            — burst-fire attack  (activates Burst AE first)
-        //   • ◎ +N            — stun attack        (activates Stun Setting AE first)
-        //   • ↳ Name          — any other mode kept as a regular toggle
+        // Each weapon (equipped OR unequipped) gets its own named sub-group.
+        // Equipped weapons show full attack buttons; unequipped show only Draw.
+        //
+        // Per sub-group layout for an equipped ranged weapon:
+        //   Draw / Sheathe  — equip toggle (weapon img on the button)
+        //   ● +N            — standard attack (single action)
+        //   ⊕ +N            — full attack     (full-round action)
+        //   ⋯ +N            — autofire        (activates Autofire AE first)
+        //   ◉ +N            — burst fire      (activates Burst AE first)
+        //   ◎ +N            — stun            (activates Stun Setting AE first)
+        //   ↳ Name          — any unknown mode kept as a plain toggle
 
         async #buildAttacks(actor) {
-            const attacks = actor.attack?.attacks ?? [];
-            if (!attacks.length) return;
-
             const RANGED_SUBTYPES = [
                 "Pistols", "Rifles", "Heavy Weapons", "Exotic Ranged Weapons",
                 "Grenades", "Simple Ranged Weapons", "Ranged Natural Weapons"
@@ -157,30 +159,30 @@ export function createActionHandler(coreModule) {
 
             const parentData = { id: GROUP.ATTACKS.id, type: "system" };
 
+            // ── Equipped weapons (full attack data from SWSE) ──────────────
+            const attacks       = actor.attack?.attacks ?? [];
+            const equippedIds   = new Set();
+
             for (let index = 0; index < attacks.length; index++) {
                 const atk  = attacks[index];
                 const item = atk.item ?? null;
+                if (item) equippedIds.add(item.id);
 
                 const rawId         = item?.id ?? `atk${index}`;
                 const weaponGroupId = `w_${rawId.replace(/[^A-Za-z0-9_-]/g, "_")}`;
                 const weaponName    = atk.name ?? game.i18n.localize("SWSE.TAH.Actions.UnknownWeapon");
 
-                // Sub-group now carries the weapon image so TAH Core can render it
-                const weaponGroupData = {
-                    id:   weaponGroupId,
-                    name: weaponName,
-                    type: "system-derived",
-                    img:  item?.img ?? ""
-                };
+                const weaponGroupData = { id: weaponGroupId, name: weaponName, type: "system-derived" };
                 await this.addGroup(weaponGroupData, parentData);
 
                 const weaponActions = [];
 
-                // ── Draw / Sheathe toggle ──────────────────────────────────
+                // ── Draw / Sheathe (weapon img on the button itself) ───────
                 if (item) {
                     const equipped = item.system?.equipped === "equipped" || item.system?.equipped === true;
                     weaponActions.push({
                         id:       `equip_${item.id}`,
+                        img:      item.img ?? "",
                         name:     equipped
                             ? game.i18n.localize("SWSE.TAH.Actions.Sheathe")
                             : game.i18n.localize("SWSE.TAH.Actions.Draw"),
@@ -198,25 +200,29 @@ export function createActionHandler(coreModule) {
                     });
                 }
 
-                // ── Ranged vs melee tag (used in tooltips) ─────────────────
+                // ── Ranged vs melee flag ───────────────────────────────────
+                let isRanged = false;
                 let rangeTag = "";
                 try {
                     const sub = item?.system?.subtype ?? "";
-                    if (sub) rangeTag = RANGED_SUBTYPES.some(g => sub.includes(g)) ? " [R]" : " [M]";
+                    if (sub) {
+                        isRanged = RANGED_SUBTYPES.some(g => sub.includes(g));
+                        rangeTag = isRanged ? " [R]" : " [M]";
+                    }
                 } catch { /* ignore */ }
 
                 // ── Attack-bonus computation ───────────────────────────────
-                // atk.attackRoll returns a Foundry Roll built (not evaluated) from the
-                // actor's fully-resolved attributes.  We parse the formula to read the
-                // total numeric modifier without actually rolling.
-                let neutralBonusVal = null; // base bonus with all active-mode adjustments removed
+                // atk.attackRoll builds (but does NOT evaluate) a Foundry Roll.
+                // Its formula looks like "1d20 + 5[Base Attack Bonus] + 3[…]".
+                // We strip flavor annotations and sum the numeric terms.
+                let neutralBonusVal = null;
                 const modes = atk.modes ?? [];
                 try {
                     const formula = atk.attackRoll?.formula;
                     const rawVal  = extractBonusVal(formula ?? "");
                     if (rawVal !== null) {
-                        // Subtract the adjustments that currently-active modes are contributing
-                        // so we have a "clean" base from which each mode's bonus can be derived.
+                        // Remove adjustments from any currently-active modes
+                        // to get a clean base we can re-apply per-mode deltas to.
                         const activeModeAdj = modes
                             .filter(m => !m.disabled)
                             .reduce((sum, m) => sum + getModeToHitAdj(m), 0);
@@ -225,29 +231,27 @@ export function createActionHandler(coreModule) {
                 } catch { /* leave null — buttons show icon only */ }
 
                 // ── Categorise modes ───────────────────────────────────────
-                // "Single-Shot" (or any mode whose icon is ●) becomes the primary
-                // attack button.  Everything else becomes its own attack button or,
-                // for unknown modes, keeps the old ↳ toggle style.
                 const singleMode = modes.find(m => getModeIcon(m.name) === "●");
                 const otherModes = modes.filter(m => m !== singleMode);
 
-                // ── Primary attack button: ● +N ────────────────────────────
-                const singleAdj = singleMode ? getModeToHitAdj(singleMode) : 0;
-                const singleVal = neutralBonusVal !== null ? neutralBonusVal + singleAdj : null;
-                // Active when Single-Shot AE is enabled, or when no other mode is active
-                const singleActive = singleMode
-                    ? !singleMode.disabled
-                    : otherModes.every(m => m.disabled);
+                // ── ● standard attack ──────────────────────────────────────
+                const singleAdj    = singleMode ? getModeToHitAdj(singleMode) : 0;
+                const singleVal    = neutralBonusVal !== null ? neutralBonusVal + singleAdj : null;
+                const singleActive = singleMode ? !singleMode.disabled : otherModes.every(m => m.disabled);
+                // Only ranged weapons with a Single-Shot fire mode use "Single Shot" in the tooltip.
+                // Melee weapons just say "Attack".
+                const singleLabel = (isRanged && singleMode) ? `Single Shot${rangeTag}` : `Attack${rangeTag}`;
 
                 weaponActions.push({
                     id:       `attack_${atk.attackKey}`,
                     name:     `● ${formatBonus(singleVal)}`.trimEnd(),
                     listName: `${weaponName}: Attack`,
                     cssClass: singleActive ? "toggle active" : "",
-                    tooltip:  `Single Shot${rangeTag} — ${game.i18n.localize("SWSE.TAH.Tooltips.AttackHint")}`,
+                    tooltip:  `${singleLabel} — ${game.i18n.localize("SWSE.TAH.Tooltips.AttackHint")}`,
                     system: {
                         actionType:    ACTION_TYPE.ATTACK,
                         attackKey:     atk.attackKey,
+                        fullAttack:    false,
                         modeToActivate: singleMode?.id ?? null,
                         isFireRateMode: true,
                         actorUUID:     actor.uuid,
@@ -255,7 +259,25 @@ export function createActionHandler(coreModule) {
                     }
                 });
 
-                // ── Additional mode buttons ────────────────────────────────
+                // ── ⊕ full attack ──────────────────────────────────────────
+                weaponActions.push({
+                    id:       `fullattack_${atk.attackKey}`,
+                    name:     `⊕ ${formatBonus(singleVal)}`.trimEnd(),
+                    listName: `${weaponName}: Full Attack`,
+                    cssClass: "",
+                    tooltip:  `Full Attack${rangeTag} — Full-round action; all iterative attacks`,
+                    system: {
+                        actionType:    ACTION_TYPE.ATTACK,
+                        attackKey:     atk.attackKey,
+                        fullAttack:    true,
+                        modeToActivate: singleMode?.id ?? null,
+                        isFireRateMode: true,
+                        actorUUID:     actor.uuid,
+                        itemId:        item?.id ?? null
+                    }
+                });
+
+                // ── additional mode buttons (⋯ ◉ ◎ …) ─────────────────────
                 for (const mode of otherModes) {
                     const icon = getModeIcon(mode.name);
 
@@ -294,6 +316,7 @@ export function createActionHandler(coreModule) {
                         system: {
                             actionType:    ACTION_TYPE.ATTACK,
                             attackKey:     atk.attackKey,
+                            fullAttack:    false,
                             modeToActivate: mode.id,
                             isFireRateMode: isFire,
                             actorUUID:     actor.uuid,
@@ -332,7 +355,6 @@ export function createActionHandler(coreModule) {
                             continue;
                         }
 
-                        // Known icon — legacy mode button (no bonus computable without AE data)
                         weaponActions.push({
                             id:       `attack_sysmode_${atk.attackKey}_${modeKey}`,
                             name:     icon,
@@ -342,6 +364,7 @@ export function createActionHandler(coreModule) {
                             system: {
                                 actionType:    ACTION_TYPE.ATTACK,
                                 attackKey:     atk.attackKey,
+                                fullAttack:    false,
                                 legacyModeKey: modeKey,
                                 isFireRateMode: isFire,
                                 actorUUID:     actor.uuid,
@@ -352,6 +375,31 @@ export function createActionHandler(coreModule) {
                 }
 
                 await this.addActions(weaponActions, weaponGroupData);
+            }
+
+            // ── Unequipped weapons — show Draw button so they don't vanish ─
+            const unequipped = (actor.items?.contents ?? []).filter(i =>
+                i.type === "weapon" && !equippedIds.has(i.id)
+            );
+            for (const item of unequipped) {
+                const weaponGroupId = `w_${item.id.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+                const weaponGroupData = { id: weaponGroupId, name: item.name, type: "system-derived" };
+                await this.addGroup(weaponGroupData, parentData);
+
+                await this.addActions([{
+                    id:       `equip_${item.id}`,
+                    img:      item.img ?? "",
+                    name:     game.i18n.localize("SWSE.TAH.Actions.Draw"),
+                    listName: `${item.name}: Draw`,
+                    cssClass: "toggle",
+                    tooltip:  game.i18n.format("SWSE.TAH.Actions.DrawTip", { weapon: item.name }),
+                    system: {
+                        actionType: ACTION_TYPE.EQUIP_TOGGLE,
+                        itemId:     item.id,
+                        actorId:    actor.id,
+                        actorUUID:  actor.uuid
+                    }
+                }], weaponGroupData);
             }
         }
 

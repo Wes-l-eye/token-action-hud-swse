@@ -29,7 +29,7 @@
   "SWSE.TAH.Groups.VehicleWeapons": "Weapons",
   "SWSE.TAH.Groups.VehicleSystems": "Systems",
 
-  "SWSE.TAH.Tooltips.AttackHint":   "Click: single attack  |  Shift+click: full attack",
+  "SWSE.TAH.Tooltips.AttackHint":   "Click to attack",
 
   "SWSE.TAH.Modes.ActiveTip":       "{mode} is ON — click to turn off",
   "SWSE.TAH.Modes.InactiveTip":     "{mode} is OFF — click to turn on",
