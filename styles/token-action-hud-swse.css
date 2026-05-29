@@ -1,0 +1,16 @@
+/* ============================================================
+   Token Action HUD — Star Wars Saga Edition
+   Custom layout overrides
+   ============================================================ */
+
+/**
+ * Keep each weapon's action buttons on a single row.
+ *
+ * TAH Core defaults to flex-flow: row wrap, which lets buttons spill
+ * onto a second line when there are more than ~5 at default size.
+ * The .tah-swse-weapon class is applied to each weapon's sub-group
+ * inner container (.tah-list-subgroup) via the group's "class" field.
+ */
+.tah-list-subgroup.tah-swse-weapon .tah-actions {
+    flex-wrap: nowrap;
+}

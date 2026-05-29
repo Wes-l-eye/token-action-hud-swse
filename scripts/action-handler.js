@@ -169,7 +169,13 @@ export function createActionHandler(coreModule) {
                 const weaponGroupId = `w_${rawId.replace(/[^A-Za-z0-9_-]/g, "_")}`;
                 const weaponName    = atk.name ?? game.i18n.localize("SWSE.TAH.Actions.UnknownWeapon");
 
-                const weaponGroupData = { id: weaponGroupId, name: weaponName, type: "system-derived" };
+                const weaponGroupData = {
+                    id:       weaponGroupId,
+                    name:     weaponName,
+                    type:     "system-derived",
+                    class:    "tah-swse-weapon",
+                    settings: { image: item?.img ?? "" }
+                };
                 await this.addGroup(weaponGroupData, parentData);
 
                 const weaponActions = [];
@@ -179,7 +185,6 @@ export function createActionHandler(coreModule) {
                     const equipped = item.system?.equipped === "equipped" || item.system?.equipped === true;
                     weaponActions.push({
                         id:       `equip_${item.id}`,
-                        img:      item.img ?? "",
                         name:     equipped
                             ? game.i18n.localize("SWSE.TAH.Actions.Sheathe")
                             : game.i18n.localize("SWSE.TAH.Actions.Draw"),
