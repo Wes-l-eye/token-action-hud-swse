@@ -12,7 +12,7 @@
   "SWSE.TAH.Categories.Vehicle":    "Vehicle",
 
   "SWSE.TAH.Groups.Attacks":        "Attacks",
-  "SWSE.TAH.Groups.AttackMods":     "Pre-Attack",
+  "SWSE.TAH.Groups.AttackMods":     "Toggles",
   "SWSE.TAH.Groups.CombatActions":  "Combat Actions",
   "SWSE.TAH.Groups.Inventory":      "Inventory",
   "SWSE.TAH.Groups.Talents":        "Talents",

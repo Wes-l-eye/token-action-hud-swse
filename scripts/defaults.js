@@ -32,11 +32,11 @@ export function buildDefaults() {
         layout: [
             // ── 10 character categories ───────────────────────────────────────
             cat("attacks",     "SWSE.TAH.Categories.Attacks",    [
-                nest("attacks",    GROUP.ATTACKS),
-                // Attack Mods group is populated dynamically; static definition required by TAH Core
+                // Toggles (pre-attack mods: Sneak Attack, Power Attack, etc.) — shown first
                 { id: "attack-mods", type: "system", nestId: "attacks_attack-mods",
                   name: game.i18n.localize("SWSE.TAH.Groups.AttackMods"),
                   listName: `Group: ${game.i18n.localize("SWSE.TAH.Groups.AttackMods")}` },
+                nest("attacks",    GROUP.ATTACKS),
             ]),
             cat("actions",     "SWSE.TAH.Categories.Actions",    [
                 nest("actions",    GROUP.COMBAT_ACTIONS),

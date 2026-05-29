@@ -139,8 +139,8 @@ export function createActionHandler(coreModule) {
 
         // ─── Attacks ──────────────────────────────────────────────────────────
         //
-        // Each weapon (equipped OR unequipped) gets its own named sub-group.
-        // Equipped weapons show full attack buttons; unequipped show only Draw.
+        // Only equipped weapons appear (SWSE only exposes them in actor.attack.attacks).
+        // Each weapon gets its own named sub-group.
         //
         // Per sub-group layout for an equipped ranged weapon:
         //   Draw / Sheathe  — equip toggle (weapon img on the button)
@@ -159,14 +159,11 @@ export function createActionHandler(coreModule) {
 
             const parentData = { id: GROUP.ATTACKS.id, type: "system" };
 
-            // ── Equipped weapons (full attack data from SWSE) ──────────────
-            const attacks       = actor.attack?.attacks ?? [];
-            const equippedIds   = new Set();
+            const attacks = actor.attack?.attacks ?? [];
 
             for (let index = 0; index < attacks.length; index++) {
                 const atk  = attacks[index];
                 const item = atk.item ?? null;
-                if (item) equippedIds.add(item.id);
 
                 const rawId         = item?.id ?? `atk${index}`;
                 const weaponGroupId = `w_${rawId.replace(/[^A-Za-z0-9_-]/g, "_")}`;
@@ -377,30 +374,6 @@ export function createActionHandler(coreModule) {
                 await this.addActions(weaponActions, weaponGroupData);
             }
 
-            // ── Unequipped weapons — show Draw button so they don't vanish ─
-            const unequipped = (actor.items?.contents ?? []).filter(i =>
-                i.type === "weapon" && !equippedIds.has(i.id)
-            );
-            for (const item of unequipped) {
-                const weaponGroupId = `w_${item.id.replace(/[^A-Za-z0-9_-]/g, "_")}`;
-                const weaponGroupData = { id: weaponGroupId, name: item.name, type: "system-derived" };
-                await this.addGroup(weaponGroupData, parentData);
-
-                await this.addActions([{
-                    id:       `equip_${item.id}`,
-                    img:      item.img ?? "",
-                    name:     game.i18n.localize("SWSE.TAH.Actions.Draw"),
-                    listName: `${item.name}: Draw`,
-                    cssClass: "toggle",
-                    tooltip:  game.i18n.format("SWSE.TAH.Actions.DrawTip", { weapon: item.name }),
-                    system: {
-                        actionType: ACTION_TYPE.EQUIP_TOGGLE,
-                        itemId:     item.id,
-                        actorId:    actor.id,
-                        actorUUID:  actor.uuid
-                    }
-                }], weaponGroupData);
-            }
         }
 
         // ─── Pre-attack modifiers (Sneak Attack, Power Attack…) ──────────────
